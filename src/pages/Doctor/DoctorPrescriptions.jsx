@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import { DoctorContext } from "../../context/DoctorContext";
 
 const DoctorPrescriptions = () => {
-  const { prescriptions, getMyPrescriptions, createPrescription, profileData } = useContext(DoctorContext);
+  const { prescriptions, getMyPrescriptions, createPrescription, profileData, patients, getPatients } = useContext(DoctorContext);
   const [patientId, setPatientId] = useState("");
   const [notes, setNotes] = useState("");
   const [medicine, setMedicine] = useState("");
@@ -12,11 +12,12 @@ const DoctorPrescriptions = () => {
 
   useEffect(() => {
     getMyPrescriptions();
+    getPatients();
   }, []);
 
   const onCreate = async (e) => {
     e.preventDefault();
-    if (!patientId.trim() || !medicine.trim()) return;
+    if (!patientId || !medicine.trim()) return;
     if (!profileData?.id) {
       alert("Doctor profile not loaded. Please refresh.");
       return;
@@ -30,7 +31,7 @@ const DoctorPrescriptions = () => {
     }]);
 
     const ok = await createPrescription({
-      patientId: patientId.trim(),
+      patientId: patientId,
       notes: notes.trim(),
       medicines,
       status: "FINALIZED",
@@ -51,8 +52,20 @@ const DoctorPrescriptions = () => {
 
       <form onSubmit={onCreate} className="bg-white border rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
         <div>
-          <p className="text-sm text-gray-600 mb-1">Patient ID</p>
-          <input value={patientId} onChange={(e) => setPatientId(e.target.value)} className="w-full border rounded px-3 py-2" required />
+          <p className="text-sm text-gray-600 mb-1">Select Patient</p>
+          <select
+            value={patientId}
+            onChange={(e) => setPatientId(e.target.value)}
+            className="w-full border rounded px-3 py-2"
+            required
+          >
+            <option value="">-- Select Patient --</option>
+            {patients.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.firstName} {p.lastName} - {p.phone}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="md:col-span-2">
           <p className="text-sm text-gray-600 mb-1">Notes</p>

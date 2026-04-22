@@ -20,9 +20,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
   }
 
   if (allowedRoles && role && !allowedRoles.includes(role)) {
-    // If user is Admin, they can view most things, otherwise redirect to their default
-    if (isAdmin) return children;
-    
     let defaultPath = '/login';
     if (role === 'RECEPTIONIST') {
       defaultPath = '/reception-appointments';

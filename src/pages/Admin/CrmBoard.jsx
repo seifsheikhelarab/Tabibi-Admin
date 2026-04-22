@@ -6,7 +6,7 @@ const CrmBoard = () => {
   const [title, setTitle] = useState("");
   const [patientName, setPatientName] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState("Medium");
+  const [priority, setPriority] = useState("MEDIUM");
   const [statusFilter, setStatusFilter] = useState("");
 
   useEffect(() => {
@@ -27,7 +27,7 @@ const CrmBoard = () => {
       setTitle("");
       setPatientName("");
       setDescription("");
-      setPriority("Medium");
+      setPriority("MEDIUM");
       getCrmTasks({ status: statusFilter });
       getCrmSummary();
     }
@@ -82,9 +82,9 @@ const CrmBoard = () => {
         <div>
           <p className="text-sm text-gray-600 mb-1">Priority</p>
           <select value={priority} onChange={(e) => setPriority(e.target.value)} className="w-full border rounded px-3 py-2">
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
+            <option value="LOW">Low</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="HIGH">High</option>
           </select>
         </div>
         <div className="md:col-span-2">

@@ -2,7 +2,7 @@ import React, { useContext, useState, useEffect } from "react";
 import { DoctorContext } from "../../context/DoctorContext";
 
 const DoctorRecords = () => {
-  const { records, getPatientRecords, createPatientRecord, profileData } = useContext(DoctorContext);
+  const { records, getPatientRecords, createPatientRecord, profileData, patients, getPatients } = useContext(DoctorContext);
   const [patientId, setPatientId] = useState("");
   const [chiefComplaint, setChiefComplaint] = useState("");
   const [notes, setNotes] = useState("");
@@ -13,13 +13,13 @@ const DoctorRecords = () => {
 
   const onSearch = async (e) => {
     e.preventDefault();
-    if (!patientId.trim()) return;
-    await getPatientRecords(patientId.trim());
+    if (!patientId) return;
+    await getPatientRecords(patientId);
   };
 
   const onCreate = async (e) => {
     e.preventDefault();
-    if (!patientId.trim() || !chiefComplaint.trim()) return;
+    if (!patientId || !chiefComplaint.trim()) return;
     if (!profileData?.id) {
       alert("Doctor profile not loaded. Please refresh.");
       return;
@@ -48,18 +48,40 @@ const DoctorRecords = () => {
 
       <form onSubmit={onSearch} className="bg-white p-4 rounded-lg border mb-6 flex gap-2 items-end">
         <div className="flex-1">
-          <p className="text-sm text-gray-600 mb-1">Patient ID</p>
-          <input
+          <p className="text-sm text-gray-600 mb-1">Select Patient</p>
+          <select
             value={patientId}
             onChange={(e) => setPatientId(e.target.value)}
             className="w-full border rounded px-3 py-2"
-            placeholder="Enter patient user id"
-          />
+          >
+            <option value="">-- Select Patient --</option>
+            {patients.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.firstName} {p.lastName} - {p.phone}
+              </option>
+            ))}
+          </select>
         </div>
         <button className="bg-primary text-white px-4 py-2 rounded">Load Records</button>
       </form>
 
       <form onSubmit={onCreate} className="bg-white p-4 rounded-lg border mb-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="md:col-span-2">
+          <p className="text-sm text-gray-600 mb-1">Select Patient</p>
+          <select
+            value={patientId}
+            onChange={(e) => setPatientId(e.target.value)}
+            className="w-full border rounded px-3 py-2"
+            required
+          >
+            <option value="">-- Select Patient --</option>
+            {patients.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.firstName} {p.lastName} - {p.phone}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="md:col-span-2">
           <p className="text-sm text-gray-600 mb-1">Chief Complaint</p>
           <input value={chiefComplaint} onChange={(e) => setChiefComplaint(e.target.value)} className="w-full border rounded px-3 py-2" required />

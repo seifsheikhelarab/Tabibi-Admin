@@ -103,6 +103,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         toast.success('Login successful!');
+        
+        // Role-based redirect after login
+        const userRole = memberResponse.data?.role;
+        const normalizedRole = userRole?.toUpperCase();
+        const isDoctorRole = normalizedRole === 'DOCTOR';
+        const isAdminRole = normalizedRole === 'ADMIN' || normalizedRole === 'OWNER';
+        
+        const redirectPath = normalizedRole === 'RECEPTIONIST' 
+          ? '/reception-appointments' 
+          : isAdminRole 
+            ? '/admin-dashboard' 
+            : isDoctorRole 
+              ? '/doctor-dashboard'
+              : '/login';
+        
+        // Small delay to ensure route is ready
+        setTimeout(() => {
+          window.location.href = redirectPath;
+        }, 100);
+        
         return true;
       }
       

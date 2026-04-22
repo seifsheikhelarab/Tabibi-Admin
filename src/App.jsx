@@ -3,28 +3,29 @@ import { useAuth } from './context/AuthContext';
 import { Route, Routes, Navigate } from 'react-router-dom'
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Navbar from './components/Navbar'
-import Sidebar from './components/Sidebar'
+import Login from './pages/Login';
 import Dashboard from './pages/Admin/Dashboard';
 import AllAppointments from './pages/Admin/AllAppointments';
 import AddDoctor from './pages/Admin/AddDoctor';
 import DoctorsList from './pages/Admin/DoctorsList';
 import EditDoctor from './pages/Admin/EditDoctor';
-import Login from './pages/Login';
+import CrmBoard from './pages/Admin/CrmBoard';
+import ReferralsBoard from './pages/Admin/ReferralsBoard';
+import ReceptionAppointments from './pages/Admin/ReceptionAppointments';
 import DoctorAppointments from './pages/Doctor/DoctorAppointments';
 import DoctorDashboard from './pages/Doctor/DoctorDashboard';
 import DoctorProfile from './pages/Doctor/DoctorProfile';
 import DoctorRecords from './pages/Doctor/DoctorRecords';
-import CrmBoard from './pages/Admin/CrmBoard';
 import DoctorPrescriptions from './pages/Doctor/DoctorPrescriptions';
 import DoctorReferrals from './pages/Doctor/DoctorReferrals';
-import ReferralsBoard from './pages/Admin/ReferralsBoard';
-import ReceptionAppointments from './pages/Admin/ReceptionAppointments';
 import LoadingScreen from './components/LoadingScreen';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminLayout from './layouts/AdminLayout';
+import DoctorLayout from './layouts/DoctorLayout';
+import ReceptionLayout from './layouts/ReceptionLayout';
 
 const App = () => {
-  const { isAuthenticated, isLoading, role, isAdmin } = useAuth()
+  const { isAuthenticated, isLoading, role, isAdmin, isDoctor } = useAuth()
 
   if (isLoading) {
     return <LoadingScreen />
@@ -41,40 +42,94 @@ const App = () => {
 
   const getDefaultRoute = () => {
     if (role === 'RECEPTIONIST') return '/reception-appointments';
-    if (isAdmin) return '/admin-dashboard';
-    return '/doctor-dashboard';
+    if (role === 'OWNER') return '/admin-dashboard';
+    if (role === 'ADMIN') return '/admin-dashboard';
+    if (role === 'DOCTOR') return '/doctor-dashboard';
+    return '/login';
   };
 
   return (
     <div className='bg-[#F8F9FD]'>
       <ToastContainer />
-      <Navbar />
-      <div className='flex items-start'>
-        <Sidebar />
-        <Routes>
-          <Route path='/' element={<Navigate to={getDefaultRoute()} />} />
-          
-          {/* Admin Routes */}
-          <Route path='/admin-dashboard' element={<ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}><Dashboard /></ProtectedRoute>} />
-          <Route path='/all-appointments' element={<ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}><AllAppointments /></ProtectedRoute>} />
-          <Route path='/add-doctor' element={<ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}><AddDoctor /></ProtectedRoute>} />
-          <Route path='/doctor-list' element={<ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}><DoctorsList /></ProtectedRoute>} />
-          <Route path='/edit-doctor/:id' element={<ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}><EditDoctor /></ProtectedRoute>} />
-          <Route path='/crm-board' element={<ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}><CrmBoard /></ProtectedRoute>} />
-          <Route path='/referrals-board' element={<ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}><ReferralsBoard /></ProtectedRoute>} />
-          
-          {/* Receptionist Routes */}
-          <Route path='/reception-appointments' element={<ProtectedRoute allowedRoles={['RECEPTIONIST', 'ADMIN', 'OWNER']}><ReceptionAppointments /></ProtectedRoute>} />
+      <Routes>
+        <Route path='/' element={<Navigate to={getDefaultRoute()} />} />
+        
+        {/* Admin Routes with Layout */}
+        <Route path='/admin-dashboard' element={
+          <ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}>
+            <AdminLayout><Dashboard /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path='/all-appointments' element={
+          <ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}>
+            <AdminLayout><AllAppointments /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path='/add-doctor' element={
+          <ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}>
+            <AdminLayout><AddDoctor /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path='/doctor-list' element={
+          <ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}>
+            <AdminLayout><DoctorsList /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path='/edit-doctor/:id' element={
+          <ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}>
+            <AdminLayout><EditDoctor /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path='/crm-board' element={
+          <ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}>
+            <AdminLayout><CrmBoard /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path='/referrals-board' element={
+          <ProtectedRoute allowedRoles={['ADMIN', 'OWNER']}>
+            <AdminLayout><ReferralsBoard /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        
+        {/* Receptionist Routes with Layout */}
+        <Route path='/reception-appointments' element={
+          <ProtectedRoute allowedRoles={['RECEPTIONIST']}>
+            <ReceptionLayout><ReceptionAppointments /></ReceptionLayout>
+          </ProtectedRoute>
+        } />
 
-          {/* Doctor Routes */}
-          <Route path='/doctor-dashboard' element={<ProtectedRoute allowedRoles={['DOCTOR', 'ADMIN', 'OWNER']}><DoctorDashboard /></ProtectedRoute>} />
-          <Route path='/doctor-appointments' element={<ProtectedRoute allowedRoles={['DOCTOR', 'ADMIN', 'OWNER']}><DoctorAppointments /></ProtectedRoute>} />
-          <Route path='/doctor-profile' element={<ProtectedRoute allowedRoles={['DOCTOR', 'ADMIN', 'OWNER']}><DoctorProfile /></ProtectedRoute>} />
-          <Route path='/doctor-records' element={<ProtectedRoute allowedRoles={['DOCTOR', 'ADMIN', 'OWNER']}><DoctorRecords /></ProtectedRoute>} />
-          <Route path='/doctor-prescriptions' element={<ProtectedRoute allowedRoles={['DOCTOR', 'ADMIN', 'OWNER']}><DoctorPrescriptions /></ProtectedRoute>} />
-          <Route path='/doctor-referrals' element={<ProtectedRoute allowedRoles={['DOCTOR', 'ADMIN', 'OWNER']}><DoctorReferrals /></ProtectedRoute>} />
-        </Routes>
-      </div>
+        {/* Doctor Routes with Layout */}
+        <Route path='/doctor-dashboard' element={
+          <ProtectedRoute allowedRoles={['DOCTOR']}>
+            <DoctorLayout><DoctorDashboard /></DoctorLayout>
+          </ProtectedRoute>
+        } />
+        <Route path='/doctor-appointments' element={
+          <ProtectedRoute allowedRoles={['DOCTOR']}>
+            <DoctorLayout><DoctorAppointments /></DoctorLayout>
+          </ProtectedRoute>
+        } />
+        <Route path='/doctor-profile' element={
+          <ProtectedRoute allowedRoles={['DOCTOR']}>
+            <DoctorLayout><DoctorProfile /></DoctorLayout>
+          </ProtectedRoute>
+        } />
+        <Route path='/doctor-records' element={
+          <ProtectedRoute allowedRoles={['DOCTOR']}>
+            <DoctorLayout><DoctorRecords /></DoctorLayout>
+          </ProtectedRoute>
+        } />
+        <Route path='/doctor-prescriptions' element={
+          <ProtectedRoute allowedRoles={['DOCTOR']}>
+            <DoctorLayout><DoctorPrescriptions /></DoctorLayout>
+          </ProtectedRoute>
+        } />
+        <Route path='/doctor-referrals' element={
+          <ProtectedRoute allowedRoles={['DOCTOR']}>
+            <DoctorLayout><DoctorReferrals /></DoctorLayout>
+          </ProtectedRoute>
+        } />
+      </Routes>
     </div>
   )
 }

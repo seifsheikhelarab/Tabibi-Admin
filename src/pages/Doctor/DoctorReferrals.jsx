@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import { DoctorContext } from "../../context/DoctorContext";
 
 const DoctorReferrals = () => {
-  const { referrals, getMyReferrals, createReferral, profileData, pharmacies, labs, getPharmacies, getLabs } = useContext(DoctorContext);
+  const { referrals, getMyReferrals, createReferral, profileData, pharmacies, labs, getPharmacies, getLabs, patients, getPatients } = useContext(DoctorContext);
   const [patientId, setPatientId] = useState("");
   const [refType, setRefType] = useState("LAB");
   const [refTargetId, setRefTargetId] = useState("");
@@ -12,25 +12,26 @@ const DoctorReferrals = () => {
     getMyReferrals();
     getPharmacies();
     getLabs();
+    getPatients();
   }, []);
 
   const onCreate = async (e) => {
     e.preventDefault();
-    if (!patientId.trim() || !refTargetId.trim()) return;
+    if (!patientId || !refTargetId) return;
     if (!profileData?.id) {
       alert("Doctor profile not loaded. Please refresh.");
       return;
     }
 
     const payload = {
-      patientId: patientId.trim(),
+      patientId: patientId,
       type: refType,
       notes: notes.trim(),
     };
     if (refType === "PHARMACY") {
-      payload.pharmacyId = refTargetId.trim();
+      payload.pharmacyId = refTargetId;
     } else if (refType === "LAB") {
-      payload.labId = refTargetId.trim();
+      payload.labId = refTargetId;
     }
 
     const ok = await createReferral(payload);
@@ -47,8 +48,20 @@ const DoctorReferrals = () => {
 
       <form onSubmit={onCreate} className="bg-white border rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
         <div>
-          <p className="text-sm text-gray-600 mb-1">Patient ID</p>
-          <input value={patientId} onChange={(e) => setPatientId(e.target.value)} className="w-full border rounded px-3 py-2" required />
+          <p className="text-sm text-gray-600 mb-1">Select Patient</p>
+          <select
+            value={patientId}
+            onChange={(e) => setPatientId(e.target.value)}
+            className="w-full border rounded px-3 py-2"
+            required
+          >
+            <option value="">-- Select Patient --</option>
+            {patients.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.firstName} {p.lastName} - {p.phone}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <p className="text-sm text-gray-600 mb-1">Referral Type</p>

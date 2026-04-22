@@ -51,7 +51,13 @@ const DoctorDashboard = () => {
         <div className='pt-0 w-full'>
           {dashData.latestAppointments.slice(0, 5).map((item, index) => (
             <div className='flex items-center px-6 py-4 gap-3 hover:bg-gray-50 transition-all duration-200 border-b last:border-0' key={index}>
-              <img className='rounded-full w-10 h-10 object-cover shadow-sm' src={item.userData.image} alt="" />
+              {item.userData?.image ? (
+                  <img className='rounded-full w-10 h-10 object-cover shadow-sm' src={item.userData.image} alt="" />
+                ) : (
+                  <div className='w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-medium'>
+                    {item.userData?.name?.charAt(0) || '?'}
+                  </div>
+                )}
               <div className='flex-1 text-sm'>
                 <p className='text-gray-800 font-medium'>{item.userData.name}</p>
                 <p className='text-gray-600 text-xs'>Booking on {slotDateFormat(item.slotDate)}</p>

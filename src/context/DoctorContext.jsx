@@ -16,6 +16,7 @@ const DoctorContextProvider = (props) => {
     const [pharmacies, setPharmacies] = useState([])
     const [labs, setLabs] = useState([])
     const [availability, setAvailability] = useState([])
+    const [patients, setPatients] = useState([])
 
     const getAppointments = async () => {
         try {
@@ -170,7 +171,7 @@ const DoctorContextProvider = (props) => {
 
     const getMyReferrals = async () => {
         try {
-            const { data } = await referralsApi.getAll()
+            const { data } = await doctorApi.getReferrals()
             if (data.success) {
                 setReferrals(data.referrals || [])
             } else {
@@ -212,6 +213,17 @@ const DoctorContextProvider = (props) => {
             const { data } = await labApi.getAll({ isActive: true })
             if (data.success) {
                 setLabs(data.data || [])
+            }
+        } catch (error) {
+            console.error(error)
+        }
+    }
+
+    const getPatients = async () => {
+        try {
+            const { data } = await api.get('/api/patients')
+            if (data.success) {
+                setPatients(data.patients || [])
             }
         } catch (error) {
             console.error(error)
@@ -270,6 +282,8 @@ const DoctorContextProvider = (props) => {
         getPharmacies,
         getLabs,
         availability,
+        patients,
+        getPatients,
         getAvailability,
         updateAvailability,
     }
