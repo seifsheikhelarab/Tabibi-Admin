@@ -6,7 +6,6 @@ import { useAuth } from "./AuthContext";
 export const AdminContext = createContext()
 
 const AdminContextProvider = (props) => {
-    const { token } = useAuth()
     const backendUrl = import.meta.env.VITE_BACKEND_URL
 
     const [appointments, setAppointments] = useState([])
@@ -17,13 +16,22 @@ const AdminContextProvider = (props) => {
     const [referrals, setReferrals] = useState([])
     const [receptionAppointments, setReceptionAppointments] = useState([])
 
+    const extract = (res) => {
+        const data = res.data;
+        if (data && data.success !== undefined) {
+            return data.data !== undefined ? data.data : data;
+        }
+        return data;
+    }
+
     const getAllDoctors = async () => {
         try {
-            const { data } = await adminApi.getAllDoctors()
-            if (data.success) {
+            const res = await adminApi.getAllDoctors()
+            const data = extract(res)
+            if (data.doctors) {
                 setDoctors(data.doctors)
-            } else {
-                toast.error(data.message)
+            } else if (Array.isArray(data)) {
+                setDoctors(data)
             }
         } catch (error) {
             toast.error(error.message)
@@ -32,7 +40,8 @@ const AdminContextProvider = (props) => {
 
     const changeAvailability = async (docId) => {
         try {
-            const { data } = await api.post('/api/admin/change-availability', { docId })
+            const res = await api.post('/api/admin/change-availability', { docId })
+            const data = res.data;
             if (data.success) {
                 toast.success(data.message)
                 getAllDoctors()
@@ -47,12 +56,10 @@ const AdminContextProvider = (props) => {
 
     const getAllAppointments = async () => {
         try {
-            const { data } = await adminApi.getAllAppointments()
-            if (data.success) {
-                setAppointments(data.appointments?.reverse() || [])
-            } else {
-                toast.error(data.message)
-            }
+            const res = await adminApi.getAllAppointments()
+            const data = extract(res)
+            const appointmentsList = data.appointments || (Array.isArray(data) ? data : [])
+            setAppointments([...appointmentsList].reverse())
         } catch (error) {
             toast.error(error.message)
             console.log(error)
@@ -61,12 +68,11 @@ const AdminContextProvider = (props) => {
 
     const cancelAppointment = async (appointmentId) => {
         try {
-            const { data } = await appointmentsApi.cancel(appointmentId)
+            const res = await appointmentsApi.cancel(appointmentId)
+            const data = res.data
             if (data.success) {
                 toast.success(data.message)
                 getAllAppointments()
-            } else {
-                toast.error(data.message)
             }
         } catch (error) {
             toast.error(error.message)
@@ -76,12 +82,11 @@ const AdminContextProvider = (props) => {
 
     const completeAppointment = async (appointmentId) => {
         try {
-            const { data } = await appointmentsApi.complete(appointmentId)
+            const res = await appointmentsApi.complete(appointmentId)
+            const data = res.data
             if (data.success) {
                 toast.success(data.message)
                 getAllAppointments()
-            } else {
-                toast.error(data.message)
             }
         } catch (error) {
             toast.error(error.message)
@@ -91,11 +96,12 @@ const AdminContextProvider = (props) => {
 
     const getDashData = async () => {
         try {
-            const { data } = await adminApi.getDashboard()
-            if (data.success) {
+            const res = await adminApi.getDashboard()
+            const data = extract(res)
+            if (data.dashboard) {
                 setDashData(data.dashboard)
             } else {
-                toast.error(data.message)
+                setDashData(data)
             }
         } catch (error) {
             console.log(error)
@@ -105,12 +111,11 @@ const AdminContextProvider = (props) => {
 
     const deleteDoctor = async (docId) => {
         try {
-            const { data } = await api.post('/api/admin/delete-doctor', { docId })
+            const res = await api.post('/api/admin/delete-doctor', { docId })
+            const data = res.data
             if (data.success) {
                 toast.success(data.message)
                 getAllDoctors()
-            } else {
-                toast.error(data.message)
             }
         } catch (error) {
             toast.error(error.message)
@@ -120,12 +125,15 @@ const AdminContextProvider = (props) => {
 
     const getCrmTasks = async (filters = {}) => {
         try {
-            const { data } = await crmApi.getAll(filters)
-            if (data.success) {
-                setCrmTasks(data.tasks || [])
-            } else {
-                toast.error(data.message)
+            const backendFilters = { ...filters };
+            if (backendFilters.status) {
+                backendFilters.status = backendFilters.status.toUpperCase().replace(' ', '_');
             }
+
+            const res = await crmApi.getAll(backendFilters)
+            const data = extract(res)
+            // crm data is { data: tasks, pagination }
+            setCrmTasks(data.data || data || [])
         } catch (error) {
             toast.error(error.message)
         }
@@ -164,10 +172,11 @@ const AdminContextProvider = (props) => {
     const getCrmSummary = async () => {
         try {
             const { data } = await api.get('/api/crm/summary')
-            if (data.success) {
-                setCrmSummary(data.summary)
+            const result = data;
+            if (result.success) {
+                setCrmSummary(result.data)
             } else {
-                toast.error(data.message)
+                toast.error(result.message)
             }
         } catch (error) {
             toast.error(error.message)
@@ -176,12 +185,10 @@ const AdminContextProvider = (props) => {
 
     const getReferrals = async (filters = {}) => {
         try {
-            const { data } = await referralsApi.getAll(filters)
-            if (data.success) {
-                setReferrals(data.referrals || [])
-            } else {
-                toast.error(data.message)
-            }
+            const res = await referralsApi.getAll(filters)
+            const data = extract(res)
+            // Backend returns { data: [...], pagination: {...} }
+            setReferrals(data.data || data.referrals || (Array.isArray(data) ? data : []))
         } catch (error) {
             toast.error(error.message)
         }
@@ -189,12 +196,11 @@ const AdminContextProvider = (props) => {
 
     const createReferral = async (payload) => {
         try {
-            const { data } = await referralsApi.create(payload)
-            if (data.success) {
+            const res = await referralsApi.create(payload)
+            if (res.data.success) {
                 toast.success('Referral created')
                 return true
             }
-            toast.error(data.message)
             return false
         } catch (error) {
             toast.error(error.message)
@@ -204,12 +210,11 @@ const AdminContextProvider = (props) => {
 
     const updateReferralStatus = async (referralId, status) => {
         try {
-            const { data } = await api.put(`/api/referrals/${referralId}`, { status })
-            if (data.success) {
+            const res = await api.put(`/api/referrals/${referralId}`, { status })
+            if (res.data.success) {
                 toast.success('Referral updated')
                 return true
             }
-            toast.error(data.message)
             return false
         } catch (error) {
             toast.error(error.message)
@@ -219,12 +224,10 @@ const AdminContextProvider = (props) => {
 
     const getReceptionAppointments = async () => {
         try {
-            const { data } = await api.get('/api/reception/appointments')
-            if (data.success) {
-                setReceptionAppointments((data.appointments || []).reverse())
-            } else {
-                toast.error(data.message)
-            }
+            const res = await api.get('/api/reception/appointments')
+            const data = extract(res)
+            const appointmentsList = data.appointments || (Array.isArray(data) ? data : [])
+            setReceptionAppointments([...appointmentsList].reverse())
         } catch (error) {
             toast.error(error.message)
         }

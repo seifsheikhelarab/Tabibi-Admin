@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { toast } from 'react-toastify';
-import { authApi, api } from '../lib/api';
+import { api } from '../lib/api';
+import { authClient } from '../lib/auth';
 
 interface User {
   id: string;
@@ -11,14 +12,15 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
+  session: any;
   organizationId: string | null;
+  organizations: any[];
   role: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  refreshSession: () => Promise<void>;
+  setActiveOrganization: (orgId: string) => Promise<void>;
   isDoctor: boolean;
   isAdmin: boolean;
   isOwner: boolean;
@@ -28,11 +30,21 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('sessionToken'));
-  const [organizationId, setOrganizationId] = useState<string | null>(localStorage.getItem('organizationId'));
+  const { data: sessionData, isPending: isSessionLoading } = authClient.useSession();
+  const { data: organizationsData, isPending: isOrgsLoading } = authClient.useListOrganizations();
   const [role, setRole] = useState<string | null>(localStorage.getItem('role'));
-  const [isLoading, setIsLoading] = useState(true);
+  const [organizationId, setOrganizationId] = useState<string | null>(localStorage.getItem('organizationId'));
+
+  const isLoading = isSessionLoading || (!!sessionData?.user && isOrgsLoading);
+
+  const user = sessionData?.user ? {
+    id: sessionData.user.id,
+    email: sessionData.user.email,
+    name: sessionData.user.name,
+    image: sessionData.user.image,
+  } : null;
+
+  const organizations = organizationsData || [];
 
   const normalizedRole = role?.toUpperCase();
   const isDoctor = normalizedRole === 'DOCTOR';
@@ -40,73 +52,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isOwner = normalizedRole === 'OWNER';
   const isReceptionist = normalizedRole === 'RECEPTIONIST';
 
-  const refreshSession = useCallback(async () => {
-    try {
-      const storedToken = localStorage.getItem('sessionToken');
-      if (!storedToken) {
-        setIsLoading(false);
-        return;
-      }
-
-      const response = await authApi.getSession();
-      if (response?.user) {
-        setUser({
-          id: response.user.id,
-          email: response.user.email,
-          name: response.user.name || response.user.email.split('@')[0],
-          image: response.user.image,
-        });
-        setOrganizationId(response.session?.activeOrganizationId || localStorage.getItem('organizationId'));
-        setToken(storedToken);
-      }
-    } catch (error) {
-      console.error('Session refresh failed:', error);
-      logout();
-    } finally {
-      setIsLoading(false);
+  useEffect(() => {
+    if (sessionData?.session?.activeOrganizationId) {
+      setOrganizationId(sessionData.session.activeOrganizationId);
+      localStorage.setItem('organizationId', sessionData.session.activeOrganizationId);
     }
-  }, []);
+  }, [sessionData]);
 
   useEffect(() => {
-    refreshSession();
-  }, [refreshSession]);
+    const fetchRole = async () => {
+      if (user && !role) {
+        try {
+          const response = await api.get('/api/members/me');
+          // Handle standardized response { success, data }
+          const memberData = response.data?.data || response.data;
+          if (memberData?.role) {
+            setRole(memberData.role);
+            localStorage.setItem('role', memberData.role);
+          }
+        } catch (error) {
+          console.error('Failed to fetch role:', error);
+        }
+      }
+    };
+    fetchRole();
+  }, [user, role]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const response = await authApi.signIn(email, password);
+      const { error } = await authClient.signIn.email({
+        email,
+        password,
+      });
+
+      if (error) {
+        toast.error(error.message || 'Invalid credentials');
+        return false;
+      }
+
+      const memberResponse = await api.get('/api/members/me');
+      const memberData = memberResponse.data?.data || memberResponse.data;
       
-      if (response?.token || response?.session?.token) {
-        const authToken = response.token || response.session.token;
-        localStorage.setItem('sessionToken', authToken);
-        setToken(authToken);
-
-        const sessionResponse = await authApi.getSession();
-        if (sessionResponse?.user) {
-          setUser({
-            id: sessionResponse.user.id,
-            email: sessionResponse.user.email,
-            name: sessionResponse.user.name || sessionResponse.user.email.split('@')[0],
-            image: sessionResponse.user.image,
-          });
-          localStorage.setItem('user', JSON.stringify(sessionResponse.user));
-        }
-
-        if (sessionResponse.session?.activeOrganizationId) {
-          setOrganizationId(sessionResponse.session.activeOrganizationId);
-          localStorage.setItem('organizationId', sessionResponse.session.activeOrganizationId);
-        }
-
-        const memberResponse = await api.get('/api/members/me');
-        if (memberResponse.data) {
-          setRole(memberResponse.data.role);
-          localStorage.setItem('role', memberResponse.data.role);
-        }
+      if (memberData?.role) {
+        const userRole = memberData.role;
+        setRole(userRole);
+        localStorage.setItem('role', userRole);
 
         toast.success('Login successful!');
         
-        // Role-based redirect after login
-        const userRole = memberResponse.data?.role;
-        const normalizedRole = userRole?.toUpperCase();
+        const normalizedRole = userRole.toUpperCase();
         const isDoctorRole = normalizedRole === 'DOCTOR';
         const isAdminRole = normalizedRole === 'ADMIN' || normalizedRole === 'OWNER';
         
@@ -118,7 +112,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               ? '/doctor-dashboard'
               : '/login';
         
-        // Small delay to ensure route is ready
         setTimeout(() => {
           window.location.href = redirectPath;
         }, 100);
@@ -126,29 +119,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true;
       }
       
-      toast.error('Invalid credentials');
-      return false;
+      return true;
     } catch (error: any) {
       console.error('Login error:', error);
-      toast.error(error.response?.data?.message || 'Login failed');
+      toast.error('Login failed');
       return false;
     }
   };
 
   const logout = async () => {
     try {
-      await authApi.signOut();
+      await authClient.signOut();
     } catch (error) {
       console.error('Sign out error:', error);
     } finally {
-      setUser(null);
-      setToken(null);
-      setOrganizationId(null);
       setRole(null);
-      localStorage.removeItem('sessionToken');
-      localStorage.removeItem('user');
+      setOrganizationId(null);
       localStorage.removeItem('organizationId');
       localStorage.removeItem('role');
+      window.location.href = '/login';
+    }
+  };
+
+  const setActiveOrganization = async (orgId: string) => {
+    try {
+      const { error } = await authClient.organization.setActive({
+        organizationId: orgId
+      });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      
+      // Refresh role for new organization
+      setRole(null);
+      localStorage.removeItem('role');
+      
+      const memberResponse = await api.get('/api/members/me');
+      const memberData = memberResponse.data?.data || memberResponse.data;
+      if (memberData?.role) {
+        setRole(memberData.role);
+        localStorage.setItem('role', memberData.role);
+      }
+      
+      toast.success('Organization switched');
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Switch organization error:', error);
+      toast.error('Failed to switch organization');
     }
   };
 
@@ -156,14 +174,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        token,
+        session: sessionData?.session,
         organizationId,
+        organizations,
         role,
-        isAuthenticated: !!token && !!user,
+        isAuthenticated: !!user,
         isLoading,
         login,
         logout,
-        refreshSession,
+        setActiveOrganization,
         isDoctor,
         isAdmin,
         isOwner,

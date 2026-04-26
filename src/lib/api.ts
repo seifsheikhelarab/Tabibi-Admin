@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { authClient } from './auth';
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 
@@ -11,15 +12,22 @@ export const api = axios.create({
 });
 
 const extractData = (response: any) => {
-  // Revert: Contexts heavily rely on `const { data } = await api.xyz()`
-  // which requires the standard Axios response object. Unpacking it early causes `data` to be undefined!
+  const data = response.data;
+  if (data?.success && data?.data !== undefined) {
+    return { data: data.data, success: true, message: data.message, pagination: data.pagination };
+  }
   return response;
 };
 
 api.interceptors.request.use(async (config) => {
-  const token = localStorage.getItem('sessionToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  const { data: sessionData } = await authClient.getSession();
+  if (sessionData?.session?.token) {
+    config.headers.Authorization = `Bearer ${sessionData.session.token}`;
+  }
+
+  const organizationId = sessionData?.session?.activeOrganizationId || localStorage.getItem('organizationId');
+  if (organizationId) {
+    config.headers['x-organization-id'] = organizationId;
   }
   return config;
 });
@@ -28,8 +36,6 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('sessionToken');
-      localStorage.removeItem('user');
       localStorage.removeItem('organizationId');
       localStorage.removeItem('role');
       window.location.href = '/login';
@@ -37,46 +43,6 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
-export const authApi = {
-  signIn: async (email: string, password: string) => {
-    const { data } = await api.post('/api/auth/sign-in/email', { email, password });
-    if (data.token) {
-      localStorage.setItem('sessionToken', data.token);
-    }
-    if (data.user) {
-      localStorage.setItem('user', JSON.stringify(data.user));
-    }
-    if (data.organizationId) {
-      localStorage.setItem('organizationId', data.organizationId);
-    }
-    if (data.role) {
-      localStorage.setItem('role', data.role);
-    }
-    return data;
-  },
-
-  signUp: async (email: string, password: string, name: string) => {
-    const { data } = await api.post('/api/auth/sign-up/email', { email, password, name });
-    return data;
-  },
-
-  signOut: async () => {
-    try {
-      await api.post('/api/auth/sign-out');
-    } finally {
-      localStorage.removeItem('sessionToken');
-      localStorage.removeItem('user');
-      localStorage.removeItem('organizationId');
-      localStorage.removeItem('role');
-    }
-  },
-
-  getSession: async () => {
-    const { data } = await api.get('/api/auth/get-session');
-    return data;
-  },
-};
 
 export const adminApi = {
   getDashboard: () => api.get('/api/admin/dashboard').then(extractData),

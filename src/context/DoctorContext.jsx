@@ -1,6 +1,6 @@
-import { createContext, useState } from "react";
+import { createContext, useState, useEffect } from "react";
 import { toast } from 'react-toastify'
-import { doctorApi, recordsApi, prescriptionsApi, referralsApi, pharmacyApi, labApi, api } from "../lib/api";
+import { doctorApi, recordsApi, prescriptionsApi, referralsApi, pharmacyApi, labApi, api, patientsApi } from "../lib/api";
 
 export const DoctorContext = createContext()
 
@@ -18,34 +18,57 @@ const DoctorContextProvider = (props) => {
     const [availability, setAvailability] = useState([])
     const [patients, setPatients] = useState([])
 
+    const extract = (res) => {
+        // If the result is already extracted data from api.ts helpers
+        if (res?.success && res?.data !== undefined) {
+            return res.data;
+        }
+        
+        const data = res?.data || res;
+        if (data && data.success !== undefined) {
+            return data.data !== undefined ? data.data : data;
+        }
+        return data;
+    }
+
     const getAppointments = async () => {
         try {
-            const { data } = await doctorApi.getAppointments()
-            if (data.success) {
-                setAppointments(data.appointments?.reverse() || [])
-            } else {
-                toast.error(data.message)
-            }
+            if (!localStorage.getItem('role')) return;
+            const res = await doctorApi.getAppointments()
+            const data = extract(res)
+            const appointmentsList = data.appointments || (Array.isArray(data) ? data : [])
+            setAppointments([...appointmentsList].reverse())
         } catch (error) {
             console.log(error)
-            toast.error(error.message)
+            // toast.error(error.message)
         }
     }
 
     const getProfileData = async () => {
         try {
-            const { data } = await doctorApi.getProfile()
-            console.log(data)
-            setProfileData(data.doctor || data.profileData)
+            if (!localStorage.getItem('role')) return;
+
+            const res = await doctorApi.getProfile()
+            const data = extract(res)
+            const profile = data.doctor || data
+            setProfileData(profile)
+            
+            // Proactively fetch patients once profile is loaded
+            if (profile?.id) {
+                const pRes = await patientsApi.getAll({ doctorId: profile.id });
+                const pData = extract(pRes);
+                setPatients(Array.isArray(pData) ? pData : (pData?.data || pData?.patients || []));
+            }
         } catch (error) {
             console.log(error)
-            toast.error(error.message)
+            // toast.error(error.message)
         }
     }
 
     const updateProfile = async (profileData) => {
         try {
-            const { data } = await doctorApi.updateProfile(profileData)
+            const res = await doctorApi.updateProfile(profileData)
+            const data = res.data;
             if (data.success) {
                 toast.success('Profile updated')
                 getProfileData()
@@ -61,13 +84,12 @@ const DoctorContextProvider = (props) => {
 
     const cancelAppointment = async (appointmentId) => {
         try {
-            const { data } = await doctorApi.cancelAppointment(appointmentId)
+            const res = await doctorApi.cancelAppointment(appointmentId)
+            const data = res.data;
             if (data.success) {
                 toast.success(data.message)
                 getAppointments()
                 getDashData()
-            } else {
-                toast.error(data.message)
             }
         } catch (error) {
             toast.error(error.message)
@@ -77,13 +99,12 @@ const DoctorContextProvider = (props) => {
 
     const completeAppointment = async (appointmentId) => {
         try {
-            const { data } = await doctorApi.completeAppointment(appointmentId)
+            const res = await doctorApi.completeAppointment(appointmentId)
+            const data = res.data;
             if (data.success) {
                 toast.success(data.message)
                 getAppointments()
                 getDashData()
-            } else {
-                toast.error(data.message)
             }
         } catch (error) {
             toast.error(error.message)
@@ -93,26 +114,35 @@ const DoctorContextProvider = (props) => {
 
     const getDashData = async () => {
         try {
-            const { data } = await doctorApi.getDashboard()
-            if (data.success) {
+            if (!localStorage.getItem('role')) return;
+            const res = await doctorApi.getDashboard()
+            const data = extract(res)
+            if (data.dashboard) {
                 setDashData(data.dashboard)
             } else {
-                toast.error(data.message)
+                setDashData(data)
+            }
+            
+            // Proactively load patients if profile is missing but we're on dashboard
+            // Only if authenticated to avoid noise on login screen
+            if (!profileData?.id) {
+                await getProfileData()
             }
         } catch (error) {
             console.log(error)
-            toast.error(error.message)
+            // toast.error(error.message) // removed to avoid noise
         }
     }
 
     const getPatientRecords = async (patientId) => {
         try {
-            const { data } = await recordsApi.getAll({ patientId })
-            if (data.success) {
-                setRecords(data.records || [])
-            } else {
-                toast.error(data.message)
+            // Ensure patients are loaded for selection
+            if (patients.length === 0) {
+                await getPatients()
             }
+            const res = await recordsApi.getAll({ patientId, doctorId: profileData?.id })
+            const data = extract(res)
+            setRecords(data.records || data.patientRecords || (Array.isArray(data) ? data : []))
         } catch (error) {
             toast.error(error.message)
         }
@@ -120,17 +150,22 @@ const DoctorContextProvider = (props) => {
 
     const createPatientRecord = async (payload, doctorId) => {
         try {
+            // Ensure patients are loaded
+            if (patients.length === 0) {
+                await getPatients()
+            }
             const recordPayload = {
                 ...payload,
                 doctorId,
                 visitDate: new Date().toISOString(),
             }
-            const { data } = await recordsApi.create(recordPayload)
-            if (data.success) {
+            const res = await recordsApi.create(recordPayload)
+            if (res.data.success) {
                 toast.success('Patient record created')
+                // Reload records after creation
+                await getPatientRecords(payload.patientId)
                 return true
             }
-            toast.error(data.message)
             return false
         } catch (error) {
             toast.error(error.message)
@@ -140,12 +175,12 @@ const DoctorContextProvider = (props) => {
 
     const getMyPrescriptions = async () => {
         try {
-            const { data } = await prescriptionsApi.getAll()
-            if (data.success) {
-                setPrescriptions(data.prescriptions || [])
-            } else {
-                toast.error(data.message)
+            if (patients.length === 0) {
+                await getPatients()
             }
+            const res = await prescriptionsApi.getAll()
+            const data = extract(res)
+            setPrescriptions(data.prescriptions || data.myPrescriptions || (Array.isArray(data) ? data : []))
         } catch (error) {
             toast.error(error.message)
         }
@@ -153,15 +188,18 @@ const DoctorContextProvider = (props) => {
 
     const createPrescription = async (payload) => {
         try {
-            const { data } = await prescriptionsApi.create({
+            if (patients.length === 0) {
+                await getPatients()
+            }
+            const res = await prescriptionsApi.create({
                 ...payload,
                 doctorId: profileData?.id,
             })
-            if (data.success) {
+            if (res.data.success) {
                 toast.success('Prescription created')
+                await getMyPrescriptions()
                 return true
             }
-            toast.error(data.message)
             return false
         } catch (error) {
             toast.error(error.message)
@@ -171,25 +209,29 @@ const DoctorContextProvider = (props) => {
 
     const getMyReferrals = async () => {
         try {
-            const { data } = await doctorApi.getReferrals()
-            if (data.success) {
-                setReferrals(data.referrals || [])
-            } else {
-                toast.error(data.message)
+            if (!profileData?.id || !localStorage.getItem('role')) {
+                return;
             }
+            const res = await referralsApi.getAll({ doctorId: profileData.id })
+            const data = extract(res)
+            setReferrals(data.referrals || data.data || (Array.isArray(data) ? data : []))
         } catch (error) {
-            toast.error(error.message)
+            console.log(error)
+            // toast.error(error.message)
         }
     }
 
     const createReferral = async (payload) => {
         try {
-            const { data } = await referralsApi.create(payload)
-            if (data.success) {
+            if (patients.length === 0) {
+                await getPatients()
+            }
+            const res = await referralsApi.create(payload)
+            if (res.data.success) {
                 toast.success('Referral created')
+                await getMyReferrals()
                 return true
             }
-            toast.error(data.message)
             return false
         } catch (error) {
             toast.error(error.message)
@@ -199,10 +241,9 @@ const DoctorContextProvider = (props) => {
 
     const getPharmacies = async () => {
         try {
-            const { data } = await pharmacyApi.getAll({ isActive: true })
-            if (data.success) {
-                setPharmacies(data.data || [])
-            }
+            const res = await pharmacyApi.getAll({ isActive: true })
+            const data = extract(res)
+            setPharmacies(data.data || (Array.isArray(data) ? data : []))
         } catch (error) {
             console.error(error)
         }
@@ -210,10 +251,9 @@ const DoctorContextProvider = (props) => {
 
     const getLabs = async () => {
         try {
-            const { data } = await labApi.getAll({ isActive: true })
-            if (data.success) {
-                setLabs(data.data || [])
-            }
+            const res = await labApi.getAll({ isActive: true })
+            const data = extract(res)
+            setLabs(data.data || (Array.isArray(data) ? data : []))
         } catch (error) {
             console.error(error)
         }
@@ -221,10 +261,18 @@ const DoctorContextProvider = (props) => {
 
     const getPatients = async () => {
         try {
-            const { data } = await api.get('/api/patients')
-            if (data.success) {
-                setPatients(data.patients || [])
+            if (!profileData?.id || !localStorage.getItem('role')) {
+                return;
             }
+            
+            // Fetch patients assigned to this doctor via appointments
+            const res = await patientsApi.getAll({
+                doctorId: profileData.id
+            })
+            const data = extract(res)
+            // handle cases where data might be nested or direct array
+            const patientList = Array.isArray(data) ? data : (data?.data || data?.patients || [])
+            setPatients(patientList)
         } catch (error) {
             console.error(error)
         }
@@ -232,10 +280,9 @@ const DoctorContextProvider = (props) => {
 
     const getAvailability = async (doctorId) => {
         try {
-            const { data } = await doctorApi.getAvailability(doctorId)
-            if (data.success) {
-                setAvailability(data.data || [])
-            }
+            const res = await doctorApi.getAvailability(doctorId)
+            const data = extract(res)
+            setAvailability(data.data || (Array.isArray(data) ? data : []))
         } catch (error) {
             console.error(error)
         }
@@ -243,19 +290,24 @@ const DoctorContextProvider = (props) => {
 
     const updateAvailability = async (doctorId, availabilityData) => {
         try {
-            const { data } = await doctorApi.setAvailability(doctorId, availabilityData)
-            if (data.success) {
+            const res = await doctorApi.setAvailability(doctorId, availabilityData)
+            if (res.data.success) {
                 toast.success('Availability updated')
                 getAvailability(doctorId)
                 return true
             }
-            toast.error(data.message)
             return false
         } catch (error) {
             toast.error(error.message)
             return false
         }
     }
+
+    useEffect(() => {
+        if (localStorage.getItem('role')) {
+            getProfileData()
+        }
+    }, [])
 
     const value = {
         backendUrl,
