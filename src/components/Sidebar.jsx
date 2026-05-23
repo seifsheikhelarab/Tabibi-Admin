@@ -164,6 +164,7 @@ const Sidebar = () => {
               <motion.div variants={itemVariants}><CustomNavLink to="/doctor-records" icon="list">Clinical Records</CustomNavLink></motion.div>
               <motion.div variants={itemVariants}><CustomNavLink to="/doctor-prescriptions" icon="list">Prescriptions</CustomNavLink></motion.div>
               <motion.div variants={itemVariants}><CustomNavLink to="/doctor-referrals" icon="list">Referral Outbox</CustomNavLink></motion.div>
+              <motion.div variants={itemVariants}><CustomNavLink to="/doctor-chat" icon="list">Patient Chat</CustomNavLink></motion.div>
             </>
           )}
         </motion.div>

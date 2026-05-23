@@ -4,6 +4,7 @@ import { Route, Routes, Navigate, useLocation } from 'react-router-dom'
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { AnimatePresence } from 'framer-motion';
+import Home from './pages/Home';
 import Login from './pages/Login';
 import Dashboard from './pages/Admin/Dashboard';
 import AllAppointments from './pages/Admin/AllAppointments';
@@ -19,6 +20,7 @@ import DoctorProfile from './pages/Doctor/DoctorProfile';
 import DoctorRecords from './pages/Doctor/DoctorRecords';
 import DoctorPrescriptions from './pages/Doctor/DoctorPrescriptions';
 import DoctorReferrals from './pages/Doctor/DoctorReferrals';
+import DoctorChat from './pages/Doctor/DoctorChat';
 import LoadingScreen from './components/LoadingScreen';
 import ProtectedRoute from './components/ProtectedRoute';
 import PageTransition from './components/PageTransition';
@@ -36,10 +38,16 @@ const App = () => {
 
   if (!isAuthenticated) {
     return (
-      <AnimatePresence mode="wait">
+      <>
         <ToastContainer />
-        <Login key="login" />
-      </AnimatePresence>
+        <AnimatePresence mode="wait">
+          <Routes location={location} key={location.pathname}>
+            <Route path='/' element={<Home />} />
+            <Route path='/login' element={<Login />} />
+            <Route path='*' element={<Navigate to='/' />} />
+          </Routes>
+        </AnimatePresence>
+      </>
     )
   }
 
@@ -56,7 +64,7 @@ const App = () => {
       <ToastContainer />
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
-          <Route path='/' element={<Navigate to={getDefaultRoute()} />} />
+          <Route path='/' element={<Navigate to={getDefaultRoute()} replace />} />
           
           {/* Admin Routes with Layout */}
           <Route path='/admin-dashboard' element={
@@ -158,6 +166,13 @@ const App = () => {
             <ProtectedRoute allowedRoles={['DOCTOR']}>
               <DoctorLayout>
                 <PageTransition><DoctorReferrals /></PageTransition>
+              </DoctorLayout>
+            </ProtectedRoute>
+          } />
+          <Route path='/doctor-chat' element={
+            <ProtectedRoute allowedRoles={['DOCTOR']}>
+              <DoctorLayout>
+                <PageTransition><DoctorChat /></PageTransition>
               </DoctorLayout>
             </ProtectedRoute>
           } />
