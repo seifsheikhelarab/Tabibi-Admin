@@ -20,7 +20,12 @@ const extractData = (response: any) => {
 };
 
 api.interceptors.request.use(async (config) => {
-  const { data: sessionData } = await authClient.getSession();
+  let sessionData = null;
+  try {
+    const { data } = await authClient.getSession();
+    sessionData = data;
+  } catch (e) {}
+
   if (sessionData?.session?.token) {
     config.headers.Authorization = `Bearer ${sessionData.session.token}`;
   }
